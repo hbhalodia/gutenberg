@@ -64,6 +64,7 @@ function useUniqueId( idProp?: string ) {
  *
  * 	return (
  * 		<BoxControl
+ * 			next40pxDefaultSize
  * 			values={ values }
  * 			onChange={ ( nextValues ) => setValues( nextValues ) }
  * 		/>
