@@ -132,19 +132,28 @@ export function ActionsMenuGroup< Item >( {
 	registry,
 	setActiveModalAction,
 }: ActionsMenuGroupProps< Item > ) {
-	const { primaryActions, regularActions } = useMemo( () => {
-		const _primaryActions = actions.filter(
-			( action ) => action.isPrimary
-		);
-		const _regularActions = actions.filter(
-			( action ) => ! action.isPrimary
-		);
+	const { primaryActions, regularActions, setAsActions, otherActions } =
+		useMemo( () => {
+			const _primaryActions = actions.filter(
+				( action ) => action.isPrimary
+			);
+			const _regularActions = actions.filter(
+				( action ) => ! action.isPrimary
+			);
+			const _setAsActions = _regularActions.filter( ( action ) =>
+				action.id.includes( 'set-as-' )
+			);
+			const _otherActions = _regularActions.filter(
+				( action ) => ! action.id.includes( 'set-as-' )
+			);
 
-		return {
-			primaryActions: _primaryActions,
-			regularActions: _regularActions,
-		};
-	}, [ actions ] );
+			return {
+				primaryActions: _primaryActions,
+				regularActions: _regularActions,
+				setAsActions: _setAsActions,
+				otherActions: _otherActions,
+			};
+		}, [ actions ] );
 
 	const handleActionClick = ( action: Action< Item > ) => () => {
 		if ( 'RenderModal' in action ) {
@@ -164,13 +173,30 @@ export function ActionsMenuGroup< Item >( {
 			/>
 		) );
 
+	const renderSetAsSubmenu = ( actionList: Action< Item >[] ) => {
+		if ( actionList.length === 0 ) {
+			return null;
+		}
+
+		return (
+			<Menu>
+				<Menu.SubmenuTriggerItem>
+					<Menu.ItemLabel>{ __( 'Set as' ) }</Menu.ItemLabel>
+				</Menu.SubmenuTriggerItem>
+				<Menu.Popover>{ renderActionGroup( actionList ) }</Menu.Popover>
+			</Menu>
+		);
+	};
+
 	return (
 		<Menu.Group>
 			{ renderActionGroup( primaryActions ) }
 			{ primaryActions.length > 0 && regularActions.length > 0 && (
 				<Menu.Separator />
 			) }
-			{ renderActionGroup( regularActions ) }
+			{ renderActionGroup( otherActions ) }
+			{ setAsActions.length > 0 && <Menu.Separator /> }
+			{ renderSetAsSubmenu( setAsActions ) }
 		</Menu.Group>
 	);
 }
