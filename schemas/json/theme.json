@@ -1324,12 +1324,13 @@
 					"$ref": "#/definitions/settingsBlockPropertiesComplete"
 				}
 			},
-			"patternProperties": {
-				"^[a-z][a-z0-9-]*/[a-z][a-z0-9-]*$": {
-					"$ref": "#/definitions/settingsBlockPropertiesComplete"
-				}
+			"$comment": "Blocks are listed individually above so editors can autocomplete them, and each entry is the ONLY schema applied to that block: `additionalProperties` covers unlisted (third-party) blocks and, unlike `patternProperties`, never applies to a listed one. Do not reintroduce `patternProperties` here — it would validate in parallel with the entries above and silently reject anything they allow but it does not. See #81057.",
+			"additionalProperties": {
+				"$ref": "#/definitions/settingsBlockPropertiesComplete"
 			},
-			"additionalProperties": false
+			"propertyNames": {
+				"pattern": "^[a-z][a-z0-9-]*/[a-z][a-z0-9-]*$"
+			}
 		},
 		"settingsCustomAdditionalProperties": {
 			"description": "Generate custom CSS custom properties of the form `--wp--custom--{key}--{nested-key}: {value};`. `camelCased` keys are transformed to `kebab-case` as to follow the CSS property naming schema. Keys at different depth levels are separated by `--`, so keys should not include `--` in the name.",
@@ -1962,6 +1963,27 @@
 		"stylesBlocksResponsiveSelectorsPropertyNames": {
 			"enum": [ "@mobile", "@tablet" ]
 		},
+		"stylesBlockStatesProperties": {
+			"$comment": "Open fragment: the state keys a block that supports states may carry. Deliberately declares no `propertyNames`, so it can be composed into a block schema that then declares one union of every allowed name. Never `$ref` a closed `*Complete` definition and try to widen it with `allOf` — the closed member keeps rejecting the added keys.",
+			"allOf": [
+				{
+					"$ref": "#/definitions/stylesBlocksResponsiveSelectorsProperties"
+				},
+				{
+					"$ref": "#/definitions/stylesBlocksPseudoSelectorsProperties"
+				}
+			]
+		},
+		"stylesBlockStatesPropertyNames": {
+			"anyOf": [
+				{
+					"$ref": "#/definitions/stylesBlocksResponsiveSelectorsPropertyNames"
+				},
+				{
+					"$ref": "#/definitions/stylesBlocksPseudoSelectorsPropertyNames"
+				}
+			]
+		},
 		"stylesElementsPseudoSelectorsProperties": {
 			"type": "object",
 			"properties": {
@@ -1996,14 +2018,30 @@
 					"description": "Styles applied to the current/active item (e.g. .current-menu-item in navigation).",
 					"allOf": [
 						{
-							"$ref": "#/definitions/stylesPropertiesComplete"
+							"$ref": "#/definitions/stylesProperties"
 						},
 						{
 							"$ref": "#/definitions/stylesBlocksPseudoSelectorsProperties"
+						},
+						{
+							"type": "object",
+							"propertyNames": {
+								"anyOf": [
+									{
+										"$ref": "#/definitions/stylesPropertyNames"
+									},
+									{
+										"$ref": "#/definitions/stylesBlocksPseudoSelectorsPropertyNames"
+									}
+								]
+							}
 						}
 					]
 				}
 			}
+		},
+		"stylesBlocksCustomStatesPropertyNames": {
+			"enum": [ "-current" ]
 		},
 		"stylesElementsPseudoSelectorsPropertyNames": {
 			"enum": [
@@ -2349,6 +2387,194 @@
 			},
 			"additionalProperties": false
 		},
+		"stylesBlockVariationWithStatesProperties": {
+			"allOf": [
+				{
+					"$ref": "#/definitions/stylesProperties"
+				},
+				{
+					"$ref": "#/definitions/stylesBlockStatesProperties"
+				},
+				{
+					"type": "object",
+					"propertyNames": {
+						"anyOf": [
+							{
+								"$ref": "#/definitions/stylesPropertyNames"
+							},
+							{
+								"$ref": "#/definitions/stylesBlockStatesPropertyNames"
+							}
+						]
+					}
+				}
+			]
+		},
+		"stylesBlockVariationsWithStatesProperties": {
+			"type": "object",
+			"patternProperties": {
+				"^[a-z][a-z0-9-]*$": {
+					"$ref": "#/definitions/stylesBlockVariationWithStatesProperties"
+				}
+			}
+		},
+		"stylesBlockWithStatesProperties": {
+			"$comment": "A block whose name appears in WP_Theme_JSON::VALID_BLOCK_PSEUDO_SELECTORS. Such blocks MUST also be excluded from the `patternProperties` regex of every block map that lists them, otherwise the generic branch applies in parallel and rejects the state keys. See the schema tests in test/integration/theme-schema.test.js.",
+			"allOf": [
+				{
+					"$ref": "#/definitions/stylesProperties"
+				},
+				{
+					"$ref": "#/definitions/stylesBlockStatesProperties"
+				},
+				{
+					"type": "object",
+					"properties": {
+						"elements": {
+							"$ref": "#/definitions/stylesElementsPropertiesComplete"
+						},
+						"variations": {
+							"$ref": "#/definitions/stylesBlockVariationsWithStatesProperties"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"propertyNames": {
+						"anyOf": [
+							{
+								"$ref": "#/definitions/stylesPropertyNames"
+							},
+							{
+								"$ref": "#/definitions/stylesBlockStatesPropertyNames"
+							},
+							{
+								"enum": [ "elements", "variations" ]
+							}
+						]
+					}
+				}
+			]
+		},
+		"stylesBlockWithCustomStatesProperties": {
+			"$comment": "As `stylesBlockWithStatesProperties`, plus the class-based custom states. Written out in full rather than composed from that definition, because it is closed by its own `propertyNames`.",
+			"allOf": [
+				{
+					"$ref": "#/definitions/stylesProperties"
+				},
+				{
+					"$ref": "#/definitions/stylesBlockStatesProperties"
+				},
+				{
+					"$ref": "#/definitions/stylesBlocksCustomStatesProperties"
+				},
+				{
+					"type": "object",
+					"properties": {
+						"elements": {
+							"$ref": "#/definitions/stylesElementsPropertiesComplete"
+						},
+						"variations": {
+							"$ref": "#/definitions/stylesBlockVariationsWithStatesProperties"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"propertyNames": {
+						"anyOf": [
+							{
+								"$ref": "#/definitions/stylesPropertyNames"
+							},
+							{
+								"$ref": "#/definitions/stylesBlockStatesPropertyNames"
+							},
+							{
+								"$ref": "#/definitions/stylesBlocksCustomStatesPropertyNames"
+							},
+							{
+								"enum": [ "elements", "variations" ]
+							}
+						]
+					}
+				}
+			]
+		},
+		"stylesVariationBlockWithStatesProperties": {
+			"$comment": "State-supporting block nested inside a style variation. Same as `stylesBlockWithStatesProperties` without `variations`, matching `stylesVariationBlockPropertiesComplete`.",
+			"allOf": [
+				{
+					"$ref": "#/definitions/stylesProperties"
+				},
+				{
+					"$ref": "#/definitions/stylesBlockStatesProperties"
+				},
+				{
+					"type": "object",
+					"properties": {
+						"elements": {
+							"$ref": "#/definitions/stylesElementsPropertiesComplete"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"propertyNames": {
+						"anyOf": [
+							{
+								"$ref": "#/definitions/stylesPropertyNames"
+							},
+							{
+								"$ref": "#/definitions/stylesBlockStatesPropertyNames"
+							},
+							{
+								"enum": [ "elements" ]
+							}
+						]
+					}
+				}
+			]
+		},
+		"stylesVariationBlockWithCustomStatesProperties": {
+			"allOf": [
+				{
+					"$ref": "#/definitions/stylesProperties"
+				},
+				{
+					"$ref": "#/definitions/stylesBlockStatesProperties"
+				},
+				{
+					"$ref": "#/definitions/stylesBlocksCustomStatesProperties"
+				},
+				{
+					"type": "object",
+					"properties": {
+						"elements": {
+							"$ref": "#/definitions/stylesElementsPropertiesComplete"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"propertyNames": {
+						"anyOf": [
+							{
+								"$ref": "#/definitions/stylesPropertyNames"
+							},
+							{
+								"$ref": "#/definitions/stylesBlockStatesPropertyNames"
+							},
+							{
+								"$ref": "#/definitions/stylesBlocksCustomStatesPropertyNames"
+							},
+							{
+								"enum": [ "elements" ]
+							}
+						]
+					}
+				}
+			]
+		},
 		"stylesBlocksPropertiesComplete": {
 			"description": "Styles defined on a per-block basis using the block's selector.",
 			"type": "object",
@@ -2381,75 +2607,7 @@
 					"$ref": "#/definitions/stylesPropertiesAndElementsComplete"
 				},
 				"core/button": {
-					"allOf": [
-						{
-							"$ref": "#/definitions/stylesProperties"
-						},
-						{
-							"$ref": "#/definitions/stylesBlocksResponsiveSelectorsProperties"
-						},
-						{
-							"type": "object",
-							"properties": {
-								"variations": {
-									"type": "object",
-									"patternProperties": {
-										"^[a-z][a-z0-9-]*$": {
-											"allOf": [
-												{
-													"$ref": "#/definitions/stylesProperties"
-												},
-												{
-													"$ref": "#/definitions/stylesBlocksResponsiveSelectorsProperties"
-												},
-												{
-													"$ref": "#/definitions/stylesBlocksPseudoSelectorsProperties"
-												},
-												{
-													"type": "object",
-													"propertyNames": {
-														"anyOf": [
-															{
-																"$ref": "#/definitions/stylesPropertyNames"
-															},
-															{
-																"$ref": "#/definitions/stylesBlocksResponsiveSelectorsPropertyNames"
-															},
-															{
-																"$ref": "#/definitions/stylesBlocksPseudoSelectorsPropertyNames"
-															}
-														]
-													}
-												}
-											]
-										}
-									}
-								}
-							}
-						},
-						{
-							"$ref": "#/definitions/stylesBlocksPseudoSelectorsProperties"
-						},
-						{
-							"type": "object",
-							"propertyNames": {
-								"anyOf": [
-									{
-										"$ref": "#/definitions/stylesPropertyNames"
-									},
-									{
-										"enum": [ "variations" ]
-									},
-									{
-										"$ref": "#/definitions/stylesBlocksResponsiveSelectorsPropertyNames"
-									},
-									{
-										"$ref": "#/definitions/stylesBlocksPseudoSelectorsPropertyNames"
-									}
-								]
-							}
-						}
-					]
+					"$ref": "#/definitions/stylesBlockWithStatesProperties"
 				},
 				"core/buttons": {
 					"$ref": "#/definitions/stylesPropertiesAndElementsComplete"
@@ -2578,20 +2736,7 @@
 					"$ref": "#/definitions/stylesPropertiesAndElementsComplete"
 				},
 				"core/navigation-link": {
-					"allOf": [
-						{
-							"$ref": "#/definitions/stylesPropertiesAndElementsComplete"
-						},
-						{
-							"$ref": "#/definitions/stylesBlocksResponsiveSelectorsProperties"
-						},
-						{
-							"$ref": "#/definitions/stylesBlocksPseudoSelectorsProperties"
-						},
-						{
-							"$ref": "#/definitions/stylesBlocksCustomStatesProperties"
-						}
-					]
+					"$ref": "#/definitions/stylesBlockWithCustomStatesProperties"
 				},
 				"core/navigation-submenu": {
 					"$ref": "#/definitions/stylesPropertiesAndElementsComplete"
@@ -2765,12 +2910,13 @@
 					"$ref": "#/definitions/stylesPropertiesAndElementsComplete"
 				}
 			},
-			"patternProperties": {
-				"^[a-z][a-z0-9-]*/[a-z][a-z0-9-]*$": {
-					"$ref": "#/definitions/stylesPropertiesAndElementsComplete"
-				}
+			"$comment": "Blocks are listed individually above so editors can autocomplete them, and each entry is the ONLY schema applied to that block: `additionalProperties` covers unlisted (third-party) blocks and, unlike `patternProperties`, never applies to a listed one. Do not reintroduce `patternProperties` here — it would validate in parallel with the entries above and silently reject anything they allow but it does not. See #81057.",
+			"additionalProperties": {
+				"$ref": "#/definitions/stylesPropertiesAndElementsComplete"
 			},
-			"additionalProperties": false
+			"propertyNames": {
+				"pattern": "^[a-z][a-z0-9-]*/[a-z][a-z0-9-]*$"
+			}
 		},
 		"stylesPropertiesAndElementsComplete": {
 			"allOf": [
@@ -2918,33 +3064,7 @@
 					"$ref": "#/definitions/stylesVariationBlockPropertiesComplete"
 				},
 				"core/button": {
-					"allOf": [
-						{
-							"$ref": "#/definitions/stylesProperties"
-						},
-						{
-							"$ref": "#/definitions/stylesBlocksResponsiveSelectorsProperties"
-						},
-						{
-							"$ref": "#/definitions/stylesBlocksPseudoSelectorsProperties"
-						},
-						{
-							"type": "object",
-							"propertyNames": {
-								"anyOf": [
-									{
-										"$ref": "#/definitions/stylesPropertyNames"
-									},
-									{
-										"$ref": "#/definitions/stylesBlocksResponsiveSelectorsPropertyNames"
-									},
-									{
-										"$ref": "#/definitions/stylesBlocksPseudoSelectorsPropertyNames"
-									}
-								]
-							}
-						}
-					]
+					"$ref": "#/definitions/stylesVariationBlockWithStatesProperties"
 				},
 				"core/buttons": {
 					"$ref": "#/definitions/stylesVariationBlockPropertiesComplete"
@@ -3073,7 +3193,7 @@
 					"$ref": "#/definitions/stylesVariationBlockPropertiesComplete"
 				},
 				"core/navigation-link": {
-					"$ref": "#/definitions/stylesVariationBlockPropertiesComplete"
+					"$ref": "#/definitions/stylesVariationBlockWithCustomStatesProperties"
 				},
 				"core/navigation-submenu": {
 					"$ref": "#/definitions/stylesVariationBlockPropertiesComplete"
@@ -3166,7 +3286,7 @@
 					"$ref": "#/definitions/stylesVariationBlockPropertiesComplete"
 				},
 				"core/query-total": {
-					"$ref": "#/definitions/stylesPropertiesAndElementsComplete"
+					"$ref": "#/definitions/stylesVariationBlockPropertiesComplete"
 				},
 				"core/quote": {
 					"$ref": "#/definitions/stylesVariationBlockPropertiesComplete"
@@ -3247,12 +3367,13 @@
 					"$ref": "#/definitions/stylesVariationBlockPropertiesComplete"
 				}
 			},
-			"patternProperties": {
-				"^[a-z][a-z0-9-]*/[a-z][a-z0-9-]*$": {
-					"$ref": "#/definitions/stylesVariationBlockPropertiesComplete"
-				}
+			"$comment": "Blocks are listed individually above so editors can autocomplete them, and each entry is the ONLY schema applied to that block: `additionalProperties` covers unlisted (third-party) blocks and, unlike `patternProperties`, never applies to a listed one. Do not reintroduce `patternProperties` here — it would validate in parallel with the entries above and silently reject anything they allow but it does not. See #81057.",
+			"additionalProperties": {
+				"$ref": "#/definitions/stylesVariationBlockPropertiesComplete"
 			},
-			"additionalProperties": false
+			"propertyNames": {
+				"pattern": "^[a-z][a-z0-9-]*/[a-z][a-z0-9-]*$"
+			}
 		},
 		"stylesVariationBlockPropertiesComplete": {
 			"allOf": [
